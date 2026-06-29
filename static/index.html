@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Video → Text</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto;
+         padding: 0 16px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  .row { margin: 14px 0; }
+  label { font-weight: 600; display: block; margin-bottom: 6px; }
+  select, input[type=file] { font-size: 1rem; }
+  button { font-size: 1rem; padding: 10px 20px; cursor: pointer; border: 0;
+           border-radius: 6px; background: #0b5; color: #fff; }
+  button:disabled { background: #999; cursor: not-allowed; }
+  #status { margin: 14px 0; min-height: 1.2em; color: #555; }
+  textarea { width: 100%; height: 320px; font-size: 1rem; padding: 10px;
+             box-sizing: border-box; }
+  .stats { font-size: .85rem; color: #666; margin-top: 8px; }
+  .err { color: #c00; white-space: pre-wrap; }
+  .bar { display: flex; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+  <h1>Video → Text <small style="font-weight:400;color:#888">(Azure Fast Transcription)</small></h1>
+
+  <div class="row">
+    <label for="lang">Language</label>
+    <select id="lang">
+      <option value="en-US">English</option>
+      <option value="ja-JP">Japanese (日本語)</option>
+      <option value="auto">Auto-detect (English / Japanese)</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label for="file">Video or audio file</label>
+    <input id="file" type="file" accept="video/*,audio/*" />
+  </div>
+
+  <div class="row bar">
+    <button id="go">Transcribe</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="row">
+    <div class="bar">
+      <label style="margin:0">Transcript</label>
+      <button id="copy" style="background:#357;padding:5px 12px;font-size:.85rem">Copy</button>
+    </div>
+    <textarea id="out" placeholder="Transcript appears here…"></textarea>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <hr style="margin:28px 0" />
+  <h2 style="font-size:1.15rem">Analyze the transcript with AI</h2>
+
+  <div class="row">
+    <label for="prompt">Prompt</label>
+    <input id="prompt" type="text" style="width:100%;box-sizing:border-box;padding:9px"
+           placeholder="e.g. Summarize the main points in 5 bullets" />
+  </div>
+
+  <div class="row bar">
+    <button id="analyze" style="background:#857">Analyze</button>
+    <span id="astatus"></span>
+  </div>
+
+  <div class="row">
+    <div class="bar">
+      <label style="margin:0">Answer</label>
+      <button id="copyAnswer" style="background:#357;padding:5px 12px;font-size:.85rem">Copy</button>
+    </div>
+    <textarea id="answer" placeholder="AI answer appears here…"></textarea>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let busy = false;
+
+$("go").onclick = async () => {
+  if (busy) return;
+  const f = $("file").files[0];
+  if (!f) { $("status").textContent = "Pick a file first."; return; }
+
+  busy = true;
+  $("go").disabled = true;
+  $("status").className = "";
+  $("status").textContent = "Uploading & transcribing… (extracting audio, then Azure)";
+  $("out").value = "";
+  $("stats").textContent = "";
+
+  const fd = new FormData();
+  fd.append("file", f);
+  fd.append("language", $("lang").value);
+
+  const started = performance.now();
+  try {
+    const r = await fetch("/transcribe", { method: "POST", body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || ("HTTP " + r.status));
+
+    $("out").value = data.text || "(no speech detected)";
+    $("status").textContent = "Done.";
+    const wall = ((performance.now() - started) / 1000).toFixed(1);
+    $("stats").textContent =
+      `audio ${data.audio_seconds}s · extract ${data.extract_seconds}s · ` +
+      `Azure ${data.transcribe_seconds}s · total ${data.total_seconds}s ` +
+      `(wall ${wall}s, lang: ${data.language_requested})`;
+  } catch (e) {
+    $("status").className = "err";
+    $("status").textContent = "Error: " + e.message;
+  } finally {
+    busy = false;
+    $("go").disabled = false;
+  }
+};
+
+$("copy").onclick = async () => {
+  await navigator.clipboard.writeText($("out").value);
+  $("copy").textContent = "Copied!";
+  setTimeout(() => ($("copy").textContent = "Copy"), 1200);
+};
+
+async function runAnalyze() {
+  const prompt = $("prompt").value.trim();
+  if (!prompt) { $("astatus").className = ""; $("astatus").textContent = "Enter a prompt first."; return; }
+  $("analyze").disabled = true;
+  $("astatus").className = "";
+  $("astatus").textContent = "Analyzing…";
+  const fd = new FormData();
+  fd.append("prompt", prompt);
+  fd.append("transcript", $("out").value);   // analyze the current transcript
+  try {
+    const r = await fetch("/analyze", { method: "POST", body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || ("HTTP " + r.status));
+    $("answer").value = data.answer || "(empty answer)";
+    $("astatus").textContent = "Done (" + data.model + ").";
+  } catch (e) {
+    $("astatus").className = "err";
+    $("astatus").textContent = "Error: " + e.message;
+  } finally {
+    $("analyze").disabled = false;
+  }
+}
+$("analyze").onclick = runAnalyze;
+$("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter") runAnalyze(); });
+
+$("copyAnswer").onclick = async () => {
+  await navigator.clipboard.writeText($("answer").value);
+  $("copyAnswer").textContent = "Copied!";
+  setTimeout(() => ($("copyAnswer").textContent = "Copy"), 1200);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Never ship secrets or local/dev cruft into the image build context
+.env
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+README.md
