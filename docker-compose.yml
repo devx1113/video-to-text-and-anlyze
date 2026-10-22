@@ -3,7 +3,7 @@ services:
     build: .
     image: video-to-text
     ports:
-      - "8000:8000"
+      - "8765:8765"
     # Loads AZURE_SPEECH_KEY / AZURE_SPEECH_REGION at runtime (not baked in).
     env_file:
       - .env

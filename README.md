@@ -43,7 +43,7 @@ English") and the current transcript + your prompt are sent to OpenAI
 python app.py
 ```
 
-Open http://127.0.0.1:8000 — pick the language, choose a file, click **Transcribe**.
+Open http://127.0.0.1:8765 — pick the language, choose a file, click **Transcribe**.
 
 `GET /health` confirms the key/region are loaded.
 
@@ -56,7 +56,7 @@ it's loaded at runtime, so secrets stay out of the image layers.
 # build + start (reads .env for the Azure key/region)
 docker compose up -d --build
 
-# open http://127.0.0.1:8000
+# open http://127.0.0.1:8765
 docker compose logs -f      # view logs
 docker compose down         # stop
 ```
@@ -65,12 +65,12 @@ Or with plain Docker:
 
 ```bash
 docker build -t video-to-text .
-docker run --rm -p 8000:8000 --env-file .env video-to-text
+docker run --rm -p 8765:8765 --env-file .env video-to-text
 ```
 
 Notes:
-- The container binds to `0.0.0.0:8000` internally; the host reaches it on
-  `http://127.0.0.1:8000` via the published port.
+- The container binds to `0.0.0.0:8765` internally; the host reaches it on
+  `http://127.0.0.1:8765` via the published port.
 - `.env` is in `.dockerignore`, so it's never copied into the image — pass it
   with `env_file:` (compose) or `--env-file` (docker run) instead.
 

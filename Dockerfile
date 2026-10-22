@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY static/ static/
 
-EXPOSE 8000
+EXPOSE 8765
 
 # Bind to 0.0.0.0 (not 127.0.0.1) so the published port is reachable from the host.
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8765"]
